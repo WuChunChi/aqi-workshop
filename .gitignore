@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 產出物（圖表重跑即可重生，不進版本庫）
+output/
+
+# 編輯器
+.vscode/settings.json
+.DS_Store
