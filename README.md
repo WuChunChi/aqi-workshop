@@ -1,7 +1,9 @@
 # 空品資料分析實作（AI 教學實戰營 · Day 2）
 
+> 課程 repo：<https://github.com/indi6748/aqi-workshop>
+
 用 Git 做版本控制、用 AI 助理（GitHub Copilot ＋ Gemini Code Assist）完成環境部空品資料的清洗與分析。
-本 repo 是第 5–7 堂的**單一真實來源**：課堂上 **Fork 本 repo**，在自己的副本開 Codespace、填空、commit。
+本 repo 是第 5–7 堂的**單一真實來源**：課堂上 **Fork 本 repo**（點 `Fork` 後會先出現「Create a new fork」確認頁，確認 Owner 是你自己的帳號再按 `Create fork`），在自己的副本開 Codespace、填空、commit。
 
 > 核心句：**AI 負責生成，教師負責把關。**
 
