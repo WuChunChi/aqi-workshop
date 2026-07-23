@@ -34,9 +34,13 @@ def load_cached(path=CACHED_CSV):
 # ====== step 2：清洗（時間 + 缺值 + 型別）======
 def clean(df):
     # TODO: 把 MISSING_TOKENS 內的值全部換成 NaN（提示：df[VALUE_COL].replace(list(MISSING_TOKENS), np.nan)）
+    df[VALUE_COL] = df[VALUE_COL].replace(list(MISSING_TOKENS), np.nan)
     # TODO: 把 datetime 欄轉成 pandas 時間（pd.to_datetime(..., errors="coerce")），存回 df["datetime"]
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
     # TODO: 把 VALUE_COL 轉成數值（pd.to_numeric(..., errors="coerce")）
+    df[VALUE_COL] = pd.to_numeric(df[VALUE_COL], errors="coerce")
     # TODO: 丟掉 datetime 或 VALUE_COL 為 NaN 的列（下一行已固定依時間排序，不必重複）
+    df = df.dropna(subset=["datetime", VALUE_COL])
     df = df.sort_values("datetime").reset_index(drop=True)
     return df
 
@@ -56,7 +60,9 @@ def analyze_trend(df, site):
     x = np.arange(len(sub))                       # 以序位代表時間先後
     y = sub[VALUE_COL].to_numpy(dtype=float)
     # TODO: 用 linregress(x, y) 取得斜率與 r 值；R² = r 值平方
-    slope, r2 = None, None
+    result = linregress(x, y)
+    slope = result.slope
+    r2 = result.rvalue ** 2
     return slope, r2, len(sub)
 
 
@@ -66,15 +72,37 @@ def verdict(slope, r2):
     # TODO: 規則：只有當 |slope|>0 且 R²>=0.5 才下「趨勢明顯」的判斷；
     #       R²<0.5 一律回「波動大、趨勢不明顯（疑似雜訊）」。
     #       這就是「AI 生成、教師把關」：AI 看斜率說惡化，你用 R² 擋下雜訊。
-    return "（待填）"
+    if r2 >= 0.5 and slope > 0:
+        return f"趨勢明顯：上升（斜率 {slope:.3f}）"
+    if r2 >= 0.5 and slope < 0:
+        return f"趨勢明顯：下降（斜率 {slope:.3f}）"
+    return "波動大、趨勢不明顯（疑似雜訊）"
 
 
 # ====== step 6：視覺化 ======
 def make_figure(df, outdir="output"):
     import matplotlib.pyplot as plt
-    # TODO: 對每個 TARGET_SITES 畫一條 PM2.5 對時間的折線（同一張圖、加圖例）
-    # TODO: 存成 output/aqi_trend.png
-    pass
+    import os
+
+    site_names = {"臺中": "Taichung", "沙鹿": "Shalu", "西屯": "Xitun"}
+    plt.figure(figsize=(10, 6))
+    for site in TARGET_SITES:
+        sub = df[df["site"] == site].sort_values("datetime")
+        plt.plot(sub["datetime"], sub[VALUE_COL], label=site_names.get(site, site))
+
+    plt.title("PM2.5 hourly trend, 2026-07-01 to 07-14")
+    plt.xlabel("Date")
+    plt.ylabel("PM2.5 (ug/m3)")
+    plt.ylim(bottom=0)
+    plt.legend()
+    plt.tight_layout()
+    os.makedirs(outdir, exist_ok=True)
+    plt.savefig(
+        os.path.join(outdir, "aqi_trend.png"),
+        dpi=150,
+        bbox_inches="tight",
+    )
+    plt.close()
 
 
 # ====== 主程式 ======
@@ -92,3 +120,34 @@ if __name__ == "__main__":
 
     make_figure(df)
     print("完成。請檢查 output 資料夾。")
+def quality_check(df):
+    # TODO: assert df[VALUE_COL] 已無 NaN
+    assert not df[VALUE_COL].isna().any(), f"{VALUE_COL} 欄位仍含有 NaN 或 NaT 值！"
+
+    # TODO: assert df["datetime"] 為時間型別（pd.api.types.is_datetime64_any_dtype）
+    assert pd.api.types.is_datetime64_any_dtype(df["datetime"]), "datetime 欄位型態並非 Pandas datetime 型態！"
+
+    # TODO: assert 每個 TARGET_SITES 在資料中至少有 2 筆（才能算趨勢）
+    assert (df["site"].value_counts().reindex(TARGET_SITES, fill_value=0) >= 2).all(), "部分 TARGET_SITES 測站資料筆數少於 2 筆！"
+
+    print("品質檢核通過，總筆數：", len(df))
+
+💡 關鍵實作細節說明：
+
+    not df[VALUE_COL].isna().any()
+
+        .isna().any() 會檢查欄位中是否有任何一個 NaN/None。加上 not 確保「完全沒有 NaN」時才通過斷言。
+
+    pd.api.types.is_datetime64_any_dtype(df["datetime"])
+
+        這是 Pandas 官方推薦的純粹型別檢查方式，可完美相容各種時區設定或不同精度的 datetime64 類型。
+
+    df["site"].value_counts().reindex(TARGET_SITES, fill_value=0) >= 2
+
+        使用 .reindex(TARGET_SITES, fill_value=0) 的好處是：如果某個指定站點在清洗後完全被刪光（0 筆），value_counts() 本身是不會列出該站點的；透過 reindex 補 0 可以防止遺漏未出現的站點，確保每一站都妥善被檢查到。def verdict(slope, r2):
+    """把斜率＋R² 翻成有把握的結論，而不是只看斜率喊『惡化』。"""
+    if r2 >= 0.5 and slope > 0:
+        return f"趨勢明顯：上升（斜率 {slope:.3f}）"
+    if r2 >= 0.5 and slope < 0:
+        return f"趨勢明顯：下降（斜率 {slope:.3f}）"
+    return "波動大、趨勢不明顯（疑似雜訊）"
